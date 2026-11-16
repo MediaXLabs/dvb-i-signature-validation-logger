@@ -63,7 +63,8 @@ Then open <http://localhost:8080/> in a browser.
 ## Configuration
 
 Defaults are set in the `$CONFIG` array at the top of `index.php`. Rather than editing that
-file, create a `config.php` next to it that returns only the keys you want to change:
+file, copy `config.example.php` to `config.php` (git ignores it) and keep only the keys you
+want to change:
 
 ```php
 <?php
@@ -141,6 +142,20 @@ fields (`type`, `url`, `user-agent`, `age`, `body.policy`, `body.signature-prese
 - Only set `trusted_proxies` when the script really is behind those proxies. Otherwise clients
   can fake their source address with `X-Forwarded-For`.
 - Serve the collector over HTTPS. The Reporting API only delivers reports to secure endpoints.
+
+## Repository layout
+
+| Path                      | Contents |
+|---------------------------|----------|
+| `index.php`               | The whole collector: ingestion, storage and web UI. |
+| `config.example.php`      | Template for a local `config.php`. |
+| `.github/workflows/`      | CI: PHP syntax check on PHP 7.4–8.4. |
+| `.github/ISSUE_TEMPLATE/` | Bug report and feature request templates. |
+
+## Contributing
+
+Issues and pull requests are welcome. Please run `php -l index.php` before submitting, and if
+you can, test by POSTing a sample report to a local `php -S` instance.
 
 ## License
 
