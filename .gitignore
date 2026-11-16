@@ -1,0 +1,14 @@
+# Local configuration (may contain deployment-specific settings)
+config.php
+
+# Report database and its WAL/SHM files
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Editor / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
