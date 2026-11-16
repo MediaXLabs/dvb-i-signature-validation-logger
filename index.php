@@ -51,6 +51,11 @@ $CONFIG = [
     'cors_allow_origin'   => '*',
     // Maximum number of reports shown for one lookup.
     'max_results'         => 1000,
+    // Only accept HTTPS connections, for both report delivery (POST) and viewing (GET).
+    // Plain HTTP GET/HEAD requests are redirected to HTTPS; other HTTP requests get 403.
+    // Behind a reverse proxy that terminates TLS, list it in trusted_proxies so that its
+    // X-Forwarded-Proto header is believed.
+    'https_only'          => false,
 ];
 
 if (is_file(__DIR__ . '/config.php')) {
@@ -181,13 +186,52 @@ function h($v): string
     return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function self_url(): string
+/**
+ * Whether the client reached us over HTTPS. X-Forwarded-Proto is only believed when the
+ * request comes directly from one of the trusted proxies, otherwise anyone could fake it.
+ */
+function is_https(array $cfg): bool
 {
-    $https  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-           || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    if (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off') {
+        return true;
+    }
+    if (($_SERVER['REQUEST_SCHEME'] ?? '') === 'https') {
+        return true;
+    }
+    $remote  = normalise_ip($_SERVER['REMOTE_ADDR'] ?? '');
+    $trusted = array_filter(array_map('normalise_ip', (array)$cfg['trusted_proxies']));
+    if ($remote !== null && in_array($remote, $trusted, true)) {
+        $proto = strtolower(trim(explode(',', $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')[0]));
+        return $proto === 'https';
+    }
+    return false;
+}
+
+function self_url(array $cfg, ?bool $https = null): string
+{
+    $https  = $https ?? is_https($cfg);
     $host   = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $path   = strtok($_SERVER['REQUEST_URI'] ?? '/', '?');
     return ($https ? 'https' : 'http') . '://' . $host . $path;
+}
+
+/** When https_only is set, refuse plain HTTP: redirect GET/HEAD, reject everything else. */
+function enforce_https(array $cfg, string $method): void
+{
+    if (!$cfg['https_only']) {
+        return;
+    }
+    if (is_https($cfg)) {
+        header('Strict-Transport-Security: max-age=31536000');
+        return;
+    }
+    if ($method === 'GET' || $method === 'HEAD') {
+        $query = $_SERVER['QUERY_STRING'] ?? '';
+        header('Location: ' . self_url($cfg, true) . ($query !== '' ? '?' . $query : ''), true, 301);
+        exit;
+    }
+    // Don't redirect POST/OPTIONS: clients may drop the body or the CORS pre-flight may fail.
+    fail(403, 'HTTPS is required');
 }
 
 function send_cors(array $cfg): void
@@ -445,7 +489,7 @@ function handle_get(array $cfg): void
     header('Content-Type: text/html; charset=utf-8');
     header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'");
     header('X-Content-Type-Options: nosniff');
-    $endpoint = self_url();
+    $endpoint = self_url($cfg);
     $me = client_ip($cfg);
     ?>
 <!doctype html>
@@ -556,7 +600,9 @@ function handle_get(array $cfg): void
 // ---------------------------------------------------------------------------------------------
 
 try {
-    switch ($_SERVER['REQUEST_METHOD'] ?? 'GET') {
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    enforce_https($CONFIG, $method);
+    switch ($method) {
         case 'OPTIONS':
             send_cors($CONFIG);
             http_response_code(204);

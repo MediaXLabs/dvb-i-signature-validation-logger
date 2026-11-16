@@ -39,7 +39,7 @@ clause 7.6.2.5**. Reports are delivered using the
 | **`pdo_sqlite` extension** | Used to store reports. No database server is needed. |
 | **`json` extension** | Built into PHP 8; enabled by default in most PHP 7.4 builds. |
 | **A web server that runs PHP** | Apache with `mod_php` or PHP-FPM, nginx with PHP-FPM, or IIS with PHP via FastCGI. |
-| **HTTPS** | The Reporting API only delivers reports to secure (`https://`) endpoints, so the collector needs a valid TLS certificate. |
+| **HTTPS** (recommended) | The W3C Reporting API only delivers reports to secure (`https://`) endpoints, so browser-based DVB-I clients need the collector to have a valid TLS certificate. The collector itself also accepts plain HTTP, which is useful for testing or for clients that don't use the Reporting API, but reports and lookups then travel unencrypted. To enforce HTTPS, set `https_only` to `true` (see [Configuration](#configuration)) or redirect HTTP in the web server configuration. |
 | **A writable data directory** | The web server's user must be able to create and write the SQLite database **and its directory**. SQLite creates `-wal` and `-shm` files next to the database. |
 | **Outbound DNS** (optional) | Used for the reverse lookup of senders (`reverse_dns`) and for hostname searches in the web UI. |
 | **POST and OPTIONS allowed** | The server must pass `POST` (report delivery) and `OPTIONS` (CORS pre-flight) requests through to PHP, as well as `GET`. |
@@ -244,6 +244,7 @@ return [
 | `trusted_proxies`      | `[]`                     | Reverse proxy addresses; the client address is then read from `X-Forwarded-For`. |
 | `cors_allow_origin`    | `*`                      | `Access-Control-Allow-Origin` value. |
 | `max_results`          | `1000`                   | Most reports shown in one lookup. |
+| `https_only`           | `false`                  | `true` accepts HTTPS connections only, for both report delivery (`POST`) and viewing (`GET`). Plain HTTP `GET`/`HEAD` requests are redirected (`301`) to HTTPS; other HTTP requests get `403`. HTTPS responses then carry a `Strict-Transport-Security` header. Behind a TLS-terminating proxy, list it in `trusted_proxies` so its `X-Forwarded-Proto` header is trusted. |
 
 ## HTTP interface
 
@@ -300,6 +301,7 @@ fields (`type`, `url`, `user-agent`, `age`, `body.policy`, `body.signature-prese
 - Only set `trusted_proxies` when the script really is behind those proxies. Otherwise clients
   can fake their source address with `X-Forwarded-For`.
 - Serve the collector over HTTPS. The Reporting API only delivers reports to secure endpoints.
+  Set `https_only` to `true` to refuse plain HTTP connections.
 
 ## Repository layout
 

@@ -15,4 +15,5 @@ return [
     // 'trusted_proxies'      => ['10.0.0.1'],
     // 'cors_allow_origin'    => '*',
     // 'max_results'          => 1000,
+    // 'https_only'           => false,
 ];
